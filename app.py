@@ -8,6 +8,13 @@ Base de datos: SQLite
 from flask import Flask, render_template, request, jsonify, redirect, url_for, session, make_response
 from datetime import datetime
 import os, hashlib, sqlite3
+try:
+    import google.generativeai as genai
+    genai.configure(api_key=os.environ.get("GEMINI_API_KEY", ""))
+    modelo_gemini = genai.GenerativeModel("gemini-1.5-flash")
+    GEMINI_OK = True
+except Exception:
+    GEMINI_OK = False
 
 app = Flask(__name__)
 app.secret_key = "turisafe_emi_2026_lapaz"
@@ -324,6 +331,62 @@ def mapa():
     zonas = rows_to_list(conn.execute("SELECT * FROM zonas_riesgo ORDER BY casos_mes DESC").fetchall())
     conn.close()
     return render_template("mapa.html", zonas=zonas, user=user)
+
+
+@app.route("/api/chat", methods=["POST"])
+def chat_ia():
+    pregunta = request.json.get("mensaje", "").strip()
+    if not pregunta:
+        return jsonify({"respuesta": "Escribe una pregunta."})
+
+    conn = get_db()
+    zonas = rows_to_list(conn.execute("SELECT nombre, nivel, casos_mes FROM zonas_riesgo ORDER BY casos_mes DESC").fetchall())
+    casos = rows_to_list(conn.execute("SELECT tipo, zona, nivel_riesgo FROM casos ORDER BY id DESC LIMIT 20").fetchall())
+    conn.close()
+
+    if GEMINI_OK:
+        try:
+            contexto = f"""Eres el asistente de seguridad de TuriSafe, sistema de mapeo de riesgos turísticos en La Paz, Bolivia.
+
+Zonas de riesgo actuales (ordenadas por incidentes):
+{zonas}
+
+Casos recientes registrados:
+{casos}
+
+Instrucciones:
+- Responde en español, de forma breve y directa (máximo 3 oraciones)
+- Si preguntan por una zona específica, indica su nivel de riesgo y recomendaciones concretas
+- Si preguntan qué hacer ante un robo, da el protocolo paso a paso
+- Contactos de emergencia: Policía Turística 222-5016, Emergencias 110
+- No inventes datos que no están en el contexto"""
+
+            respuesta = modelo_gemini.generate_content(f"{contexto}\n\nPregunta del usuario: {pregunta}")
+            return jsonify({"respuesta": respuesta.text, "fuente": "gemini"})
+        except Exception as e:
+            pass
+
+    # Fallback al motor de reglas si Gemini falla
+    return jsonify({"respuesta": respuesta_local(pregunta, zonas), "fuente": "local"})
+
+
+def respuesta_local(msg, zonas):
+    m = msg.lower()
+    for z in zonas:
+        if z["nombre"].lower() in m:
+            n = z["nivel"]
+            if n == "alto":
+                return f"⚠️ {z['nombre']} es zona de riesgo ALTO ({z['casos_mes']} casos este mes). Ve acompañado y evita objetos de valor visibles."
+            elif n == "medio":
+                return f"🟡 {z['nombre']} tiene riesgo MEDIO ({z['casos_mes']} casos). Puedes visitarla con precaución."
+            else:
+                return f"✅ {z['nombre']} es zona de bajo riesgo ({z['casos_mes']} casos). Relativamente segura."
+    if any(x in m for x in ["robaron","robo","asalto","hago si"]):
+        return "🆘 Ve a un lugar seguro. Llama a Policía Turística: 222-5016 o Emergencias: 110. Reporta en TuriSafe."
+    if any(x in m for x in ["peligros","peor","mas riesgo"]):
+        top = sorted(zonas, key=lambda z: z["casos_mes"], reverse=True)[:2]
+        return f"🔴 Las zonas más peligrosas son: {top[0]['nombre']} y {top[1]['nombre']}."
+    return "Puedo ayudarte con zonas de riesgo en La Paz. Pregúntame: ¿Es seguro ir al Mercado Rodríguez?"
 
 
 @app.route("/api/zonas")
