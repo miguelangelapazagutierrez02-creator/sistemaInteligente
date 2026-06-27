@@ -1,0 +1,794 @@
+{% extends "base.html" %}
+{% set active = 'mapa' %}
+{% block title %}Mapa Inteligente{% endblock %}
+{% block content %}
+
+<style>
+  /* ── Layout general ── */
+  .mapa-wrap {
+    display: grid;
+    grid-template-columns: 300px 1fr;
+    grid-template-rows: auto 1fr auto;
+    gap: 14px;
+    height: calc(100vh - 130px);
+    min-height: 540px;
+  }
+
+  /* ── Panel izquierdo ── */
+  .panel-izq {
+    grid-row: 1 / 4;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    overflow-y: auto;
+    scrollbar-width: thin;
+  }
+
+  .map-card {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 14px;
+    padding: 14px 16px;
+    flex-shrink: 0;
+  }
+  .map-card h3 {
+    font-size: 12px;
+    font-weight: 600;
+    color: #6b7280;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  /* Filtros */
+  .filtro-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 12px;
+    border-radius: 20px;
+    border: 1.5px solid;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all .15s;
+    background: transparent;
+    font-family: 'DM Sans', sans-serif;
+    margin: 3px;
+  }
+  .filtro-chip.alto  { border-color: #fca5a5; color: #991b1b; }
+  .filtro-chip.medio { border-color: #fcd34d; color: #92400e; }
+  .filtro-chip.bajo  { border-color: #86efac; color: #166534; }
+  .filtro-chip.active.alto  { background: #fef2f2; }
+  .filtro-chip.active.medio { background: #fffbeb; }
+  .filtro-chip.active.bajo  { background: #f0fdf4; }
+  .filtro-chip .dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .dot-alto  { background: #dc2626; }
+  .dot-medio { background: #d97706; }
+  .dot-bajo  { background: #16a34a; }
+
+  /* Lista de zonas */
+  .zona-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 0;
+    border-bottom: 1px solid #f3f4f6;
+    cursor: pointer;
+    transition: background .1s;
+    border-radius: 6px;
+    padding: 7px 8px;
+    margin: 0 -8px;
+  }
+  .zona-item:hover { background: #f9fafb; }
+  .zona-item:last-child { border-bottom: none; }
+  .zona-nombre { font-size: 13px; font-weight: 500; color: #111827; }
+  .zona-casos  { font-size: 11px; color: #9ca3af; margin-top: 1px; }
+  .pill-sm {
+    font-size: 10px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 20px;
+    text-transform: uppercase;
+    letter-spacing: .03em;
+  }
+  .pill-sm.alto  { background: #fef2f2; color: #991b1b; }
+  .pill-sm.medio { background: #fffbeb; color: #92400e; }
+  .pill-sm.bajo  { background: #f0fdf4; color: #166534; }
+
+  /* Stats rápidos */
+  .mini-stats {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 6px;
+  }
+  .mini-stat {
+    text-align: center;
+    padding: 8px 4px;
+    border-radius: 10px;
+    border: 1px solid #e5e7eb;
+  }
+  .mini-stat .n { font-size: 20px; font-weight: 600; line-height: 1; }
+  .mini-stat .l { font-size: 10px; color: #9ca3af; margin-top: 2px; }
+  .mini-stat.alto  .n { color: #dc2626; }
+  .mini-stat.medio .n { color: #d97706; }
+  .mini-stat.bajo  .n { color: #16a34a; }
+
+  /* ── Mapa ── */
+  .mapa-container {
+    grid-column: 2;
+    grid-row: 1 / 3;
+    border-radius: 14px;
+    overflow: hidden;
+    border: 1px solid #e5e7eb;
+    position: relative;
+    z-index: 0;
+  }
+  #map { width: 100%; height: 100%; }
+  .leaflet-pane { z-index: 1 !important; }
+  .leaflet-top, .leaflet-bottom { z-index: 2 !important; }
+
+  /* Badge de modo */
+  .map-badge {
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    z-index: 1000;
+    background: rgba(10,22,40,0.85);
+    color: #5DCAA5;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 4px 12px;
+    border-radius: 20px;
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(29,158,117,0.3);
+    letter-spacing: .04em;
+    pointer-events: none;
+  }
+
+  /* Botón reporte flotante */
+  .btn-report-float {
+    position: absolute;
+    bottom: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 1000;
+    background: #0F6E56;
+    color: #fff;
+    border: none;
+    border-radius: 20px;
+    padding: 9px 20px;
+    font-size: 13px;
+    font-weight: 500;
+    font-family: 'DM Sans', sans-serif;
+    cursor: pointer;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    box-shadow: 0 4px 16px rgba(15,110,86,0.35);
+    transition: background .15s;
+  }
+  .btn-report-float:hover { background: #085041; }
+
+  /* ── Chat IA ── */
+  .chat-panel {
+    grid-column: 2;
+    grid-row: 3;
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 14px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    max-height: 200px;
+  }
+
+  .chat-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    border-bottom: 1px solid #f3f4f6;
+    background: #f9fafb;
+    flex-shrink: 0;
+  }
+  .chat-header .ia-badge {
+    font-size: 10px;
+    font-weight: 600;
+    background: linear-gradient(135deg, #1D9E75, #0F6E56);
+    color: #fff;
+    padding: 2px 8px;
+    border-radius: 20px;
+    letter-spacing: .04em;
+  }
+  .chat-header span {
+    font-size: 13px;
+    font-weight: 500;
+    color: #0a1628;
+  }
+  .chat-header .chat-status {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    color: #16a34a;
+  }
+  .chat-header .chat-status::before {
+    content: '';
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: #16a34a;
+    animation: pulse-dot 2s infinite;
+  }
+  @keyframes pulse-dot {
+    0%, 100% { opacity: 1; }
+    50% { opacity: .4; }
+  }
+
+  .chat-msgs {
+    flex: 1;
+    overflow-y: auto;
+    padding: 10px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    scrollbar-width: thin;
+  }
+
+  .msg {
+    max-width: 85%;
+    font-size: 13px;
+    line-height: 1.5;
+    padding: 8px 12px;
+    border-radius: 12px;
+  }
+  .msg.bot {
+    background: #f0fdf4;
+    color: #14532d;
+    border: 1px solid #bbf7d0;
+    align-self: flex-start;
+    border-bottom-left-radius: 4px;
+  }
+  .msg.bot.alerta {
+    background: #fef2f2;
+    color: #7f1d1d;
+    border-color: #fecaca;
+  }
+  .msg.bot.advertencia {
+    background: #fffbeb;
+    color: #78350f;
+    border-color: #fde68a;
+  }
+  .msg.user {
+    background: #0a1628;
+    color: #e0f2fe;
+    align-self: flex-end;
+    border-bottom-right-radius: 4px;
+  }
+  .msg-time { font-size: 10px; opacity: .5; margin-top: 3px; }
+
+  /* Typing indicator */
+  .typing {
+    display: flex;
+    gap: 4px;
+    padding: 10px 14px;
+    align-self: flex-start;
+  }
+  .typing span {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: #9ca3af;
+    animation: typing-bounce .8s infinite;
+  }
+  .typing span:nth-child(2) { animation-delay: .15s; }
+  .typing span:nth-child(3) { animation-delay: .3s; }
+  @keyframes typing-bounce {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-4px); }
+  }
+
+  .chat-input-row {
+    display: flex;
+    gap: 8px;
+    padding: 8px 10px;
+    border-top: 1px solid #f3f4f6;
+    background: #fafafa;
+    flex-shrink: 0;
+  }
+  .chat-input {
+    flex: 1;
+    border: 1px solid #e5e7eb;
+    border-radius: 20px;
+    padding: 8px 14px;
+    font-size: 13px;
+    font-family: 'DM Sans', sans-serif;
+    outline: none;
+    color: #111827;
+    background: #fff;
+    transition: border .2s;
+  }
+  .chat-input:focus { border-color: #1D9E75; }
+  .chat-input::placeholder { color: #9ca3af; }
+  .chat-send {
+    width: 36px; height: 36px;
+    border-radius: 50%;
+    background: #0F6E56;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background .15s;
+    flex-shrink: 0;
+  }
+  .chat-send:hover { background: #085041; }
+  .chat-send svg { width: 16px; height: 16px; fill: none; stroke: #fff; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+  /* Sugerencias rápidas */
+  .quick-btns {
+    display: flex;
+    gap: 6px;
+    padding: 6px 10px 0;
+    flex-wrap: wrap;
+    flex-shrink: 0;
+  }
+  .quick-btn {
+    font-size: 11px;
+    padding: 4px 10px;
+    border-radius: 20px;
+    border: 1px solid #d1d5db;
+    background: #fff;
+    color: #374151;
+    cursor: pointer;
+    font-family: 'DM Sans', sans-serif;
+    transition: all .15s;
+    white-space: nowrap;
+  }
+  .quick-btn:hover { border-color: #1D9E75; color: #0F6E56; background: #f0fdf4; }
+
+  /* Recomendaciones */
+  .recom-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+  }
+  .recom-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    font-size: 12px;
+    color: #374151;
+    line-height: 1.4;
+    padding: 6px;
+    border-radius: 8px;
+    background: #f9fafb;
+  }
+
+  /* ── RESPONSIVE TABLET / MÓVIL ── */
+  @media (max-width: 768px) {
+    .mapa-wrap {
+      display: flex;
+      flex-direction: column;
+      height: auto;
+      min-height: unset;
+    }
+    .mapa-container {
+      grid-column: unset;
+      grid-row: unset;
+      order: 1;
+      height: 55vw;
+      min-height: 240px;
+      max-height: 380px;
+    }
+    .chat-panel {
+      grid-column: unset;
+      grid-row: unset;
+      order: 2;
+      max-height: 250px;
+    }
+    .panel-izq {
+      grid-row: unset;
+      order: 3;
+      overflow-y: visible;
+      max-height: unset;
+    }
+    .quick-btns {
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      padding-bottom: 4px;
+    }
+    .quick-btns::-webkit-scrollbar { display: none; }
+    .quick-btn { flex-shrink: 0; }
+    .recom-grid { grid-template-columns: 1fr 1fr; }
+    .mini-stats { grid-template-columns: repeat(3,1fr); }
+  }
+
+  @media (max-width: 480px) {
+    .mapa-container { height: 62vw; min-height: 200px; }
+    .chat-panel { max-height: 230px; }
+    .recom-grid { grid-template-columns: 1fr 1fr; }
+    .map-card h3 { font-size: 11px; }
+  }
+
+  @media (max-width: 360px) {
+    .mapa-container { height: 70vw; min-height: 180px; }
+    .chat-panel { max-height: 210px; }
+    .recom-grid { grid-template-columns: 1fr; }
+    .mini-stats { grid-template-columns: repeat(3,1fr); gap:4px; }
+    .mini-stat .n { font-size:16px; }
+    .mini-stat .l { font-size:9px; }
+    .zona-nombre { font-size:12px; }
+    .zona-casos  { font-size:10px; }
+    .filtro-chip { font-size:11px; padding:4px 9px; }
+    .chat-input  { font-size:12px; padding:6px 10px; }
+    .msg         { font-size:12px; }
+    .map-card    { padding:10px 12px; }
+  }
+</style>
+
+<div class="mapa-wrap">
+
+  <!-- ── Panel izquierdo ── -->
+  <div class="panel-izq">
+
+    <!-- Mini stats -->
+    <div class="map-card">
+      <h3>📊 Resumen</h3>
+      <div class="mini-stats">
+        <div class="mini-stat alto">
+          <div class="n">{{ zonas | selectattr('nivel','eq','alto') | list | length }}</div>
+          <div class="l">Alto</div>
+        </div>
+        <div class="mini-stat medio">
+          <div class="n">{{ zonas | selectattr('nivel','eq','medio') | list | length }}</div>
+          <div class="l">Medio</div>
+        </div>
+        <div class="mini-stat bajo">
+          <div class="n">{{ zonas | selectattr('nivel','eq','bajo') | list | length }}</div>
+          <div class="l">Bajo</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Filtros -->
+    <div class="map-card">
+      <h3>🔍 Filtrar zonas</h3>
+      <div>
+        <button class="filtro-chip alto active" id="chip-alto" onclick="toggleFiltro('alto')">
+          <span class="dot dot-alto"></span> Alto
+        </button>
+        <button class="filtro-chip medio active" id="chip-medio" onclick="toggleFiltro('medio')">
+          <span class="dot dot-medio"></span> Medio
+        </button>
+        <button class="filtro-chip bajo active" id="chip-bajo" onclick="toggleFiltro('bajo')">
+          <span class="dot dot-bajo"></span> Bajo
+        </button>
+      </div>
+    </div>
+
+    <!-- Zonas -->
+    <div class="map-card" style="flex:1; overflow-y:auto;">
+      <h3>📍 Zonas de riesgo</h3>
+      {% for z in zonas %}
+      <div class="zona-item" onclick="irAZona({{ z.lat }}, {{ z.lng }}, '{{ z.nombre }}', '{{ z.nivel }}')">
+        <div>
+          <div class="zona-nombre">{{ z.nombre }}</div>
+          <div class="zona-casos">{{ z.casos_mes }} casos este mes</div>
+        </div>
+        <span class="pill-sm {{ z.nivel }}">{{ z.nivel }}</span>
+      </div>
+      {% endfor %}
+    </div>
+
+    <!-- Recomendaciones -->
+    <div class="map-card">
+      <h3>💡 Consejos</h3>
+      <div class="recom-grid">
+        <div class="recom-item">🔴 Evite circular solo de noche en zonas rojas</div>
+        <div class="recom-item">🟡 Guarde objetos de valor en zonas amarillas</div>
+        <div class="recom-item">📞 Policía Turística: <strong>222-5016</strong></div>
+        <div class="recom-item">🚨 Emergencias: <strong>110</strong></div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ── Mapa ── -->
+  <div class="mapa-container">
+    <div class="map-badge">🗺 MODO EN VIVO</div>
+  {% if user.rol == 'visitante' %}
+  <div style="position:absolute;bottom:52px;left:50%;transform:translateX(-50%);z-index:1000;background:rgba(10,22,40,0.92);border:1px solid rgba(29,158,117,0.4);border-radius:20px;padding:8px 16px;font-size:12px;color:rgba(255,255,255,0.8);white-space:nowrap;backdrop-filter:blur(8px)">
+    👤 Modo visitante &nbsp;·&nbsp; <a href="/login" style="color:#5DCAA5;text-decoration:none;font-weight:500">Inicia sesión para reportar →</a>
+  </div>
+  {% endif %}
+    <div id="map"></div>
+    {% if user.rol != 'visitante' %}
+  <a href="/casos/nuevo" class="btn-report-float">＋ Reportar incidente</a>
+  {% endif %}
+  </div>
+
+  <!-- ── Chat IA ── -->
+  <div class="chat-panel">
+    <div class="chat-header">
+      <span class="ia-badge">IA</span>
+      <span>Asistente de seguridad TuriSafe</span>
+      <span class="chat-status">en línea</span>
+    </div>
+
+    <div class="quick-btns">
+      <button class="quick-btn" onclick="preguntarRapido('¿Es seguro el Mercado Rodríguez?')">¿Mercado Rodríguez?</button>
+      <button class="quick-btn" onclick="preguntarRapido('¿Qué zona es más peligrosa?')">Zona más peligrosa</button>
+      <button class="quick-btn" onclick="preguntarRapido('¿Cómo llegar seguro a la Plaza Mayor?')">Ruta segura</button>
+      <button class="quick-btn" onclick="preguntarRapido('¿Qué hago si me roban?')">Me robaron</button>
+    </div>
+
+    <div class="chat-msgs" id="chat-msgs">
+      <div class="msg bot">
+        👋 Hola, soy el asistente de seguridad de TuriSafe. Pregúntame sobre zonas de riesgo en La Paz o qué hacer en caso de incidente.
+        <div class="msg-time">ahora</div>
+      </div>
+    </div>
+
+    <div class="chat-input-row">
+      <input class="chat-input" id="chat-input" type="text"
+        placeholder="Ej: ¿Es seguro ir al Cementerio General?"
+        onkeydown="if(event.key==='Enter') enviarMsg()">
+      <button class="chat-send" onclick="enviarMsg()">
+        <svg viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+      </button>
+    </div>
+  </div>
+
+</div>
+
+<!-- Leaflet -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<!-- Leaflet.heat para heatmap -->
+<script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+
+<script>
+// ── Datos desde Flask ──
+const ZONAS  = {{ zonas | tojson }};
+const COLORES = { alto:'#dc2626', medio:'#d97706', bajo:'#16a34a' };
+const OPACIDAD = { alto:0.30, medio:0.22, bajo:0.15 };
+
+// ── Inicializar mapa ──
+const mapa = L.map('map', {
+  center: [-16.5000, -68.1350],
+  zoom: 13,
+  zoomControl: false
+});
+
+L.control.zoom({ position: 'topright' }).addTo(mapa);
+
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '© OpenStreetMap | TuriSafe',
+  maxZoom: 19
+}).addTo(mapa);
+
+// ── Círculos y marcadores ──
+let circulos = [];
+let heatLayer = null;
+let filtrosActivos = { alto: true, medio: true, bajo: true };
+
+function dibujarZonas() {
+  circulos.forEach(c => mapa.removeLayer(c));
+  circulos = [];
+
+  ZONAS.forEach(z => {
+    if (!filtrosActivos[z.nivel]) return;
+
+    // Círculo de zona
+    const circle = L.circle([z.lat, z.lng], {
+      radius: z.radio,
+      color: COLORES[z.nivel],
+      fillColor: COLORES[z.nivel],
+      fillOpacity: OPACIDAD[z.nivel],
+      weight: 2
+    }).addTo(mapa);
+
+    circle.bindPopup(`
+      <div style="font-family:'DM Sans',sans-serif;min-width:180px">
+        <div style="font-weight:600;font-size:14px;color:#0a1628;margin-bottom:4px">${z.nombre}</div>
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
+          <span style="width:8px;height:8px;border-radius:50%;background:${COLORES[z.nivel]};display:inline-block"></span>
+          <span style="font-size:12px;color:#6b7280">Nivel ${z.nivel.toUpperCase()}</span>
+        </div>
+        <div style="font-size:13px;color:#374151">📊 ${z.casos_mes} casos este mes</div>
+        <hr style="margin:8px 0;border-color:#f3f4f6">
+        <a href="/casos/nuevo" style="font-size:12px;color:#0F6E56;text-decoration:none">+ Reportar aquí</a>
+      </div>
+    `);
+
+    circulos.push(circle);
+  });
+}
+
+// ── Heatmap ──
+function actualizarHeatmap(casos) {
+  if (heatLayer) mapa.removeLayer(heatLayer);
+  const pts = casos.map(c => {
+    const w = c.nivel_riesgo === 'alto' ? 1.0 : c.nivel_riesgo === 'medio' ? 0.6 : 0.3;
+    return [c.lat, c.lng, w];
+  });
+  heatLayer = L.heatLayer(pts, {
+    radius: 35,
+    blur: 25,
+    maxZoom: 16,
+    gradient: { 0.2:'#86efac', 0.5:'#fde68a', 0.8:'#fca5a5', 1.0:'#991b1b' }
+  }).addTo(mapa);
+}
+
+// ── Cargar casos del API ──
+fetch('/api/casos')
+  .then(r => r.json())
+  .then(casos => {
+    actualizarHeatmap(casos);
+
+    casos.forEach(c => {
+      const color = COLORES[c.nivel_riesgo] || '#888';
+      const svgIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="32" viewBox="0 0 24 32">
+        <path d="M12 0C5.373 0 0 5.373 0 12c0 9 12 20 12 20S24 21 24 12C24 5.373 18.627 0 12 0z" fill="${color}"/>
+        <circle cx="12" cy="12" r="5" fill="white"/>
+      </svg>`;
+      const icon = L.divIcon({
+        html: svgIcon,
+        className: '',
+        iconSize: [24, 32],
+        iconAnchor: [12, 32],
+        popupAnchor: [0, -32]
+      });
+
+      L.marker([c.lat, c.lng], { icon })
+        .addTo(mapa)
+        .bindPopup(`
+          <div style="font-family:'DM Sans',sans-serif;min-width:180px">
+            <div style="font-weight:600;font-size:14px;color:#0a1628;margin-bottom:2px">${c.tipo}</div>
+            <div style="font-size:12px;color:#6b7280;margin-bottom:6px">${c.zona} · ${c.fecha} ${c.hora}</div>
+            <div style="font-size:13px;color:#374151;margin-bottom:6px">${c.descripcion}</div>
+            <div style="display:flex;gap:6px">
+              <span style="font-size:11px;padding:2px 8px;border-radius:20px;background:${c.nivel_riesgo==='alto'?'#fef2f2':c.nivel_riesgo==='medio'?'#fffbeb':'#f0fdf4'};color:${color};font-weight:500">${c.nivel_riesgo}</span>
+              <span style="font-size:11px;padding:2px 8px;border-radius:20px;background:#eff6ff;color:#1e40af;font-weight:500">${c.nacionalidad}</span>
+            </div>
+          </div>
+        `);
+    });
+  });
+
+// ── Filtros ──
+function toggleFiltro(nivel) {
+  filtrosActivos[nivel] = !filtrosActivos[nivel];
+  const chip = document.getElementById('chip-' + nivel);
+  chip.classList.toggle('active', filtrosActivos[nivel]);
+  dibujarZonas();
+}
+
+// ── Ir a zona ──
+function irAZona(lat, lng, nombre, nivel) {
+  mapa.flyTo([lat, lng], 15, { duration: 1 });
+  setTimeout(() => {
+    preguntarRapido(`¿Es seguro visitar ${nombre}?`);
+  }, 800);
+}
+
+dibujarZonas();
+
+// ── Chat IA ──
+const ZONA_DB = {{ zonas | tojson }};
+const CASO_DB_RESUMEN = [
+  { zona: 'Mercado Rodríguez', nivel: 'alto', casos: 47 },
+  { zona: 'Cementerio General', nivel: 'alto', casos: 31 },
+  { zona: 'Plaza Mayor', nivel: 'medio', casos: 18 },
+  { zona: 'Zona Sur', nivel: 'medio', casos: 12 },
+  { zona: 'Sopocachi', nivel: 'bajo', casos: 5 },
+  { zona: 'Miraflores', nivel: 'bajo', casos: 4 }
+];
+
+function responderIA(msg) {
+  const m = msg.toLowerCase();
+
+  // Detección de zona específica
+  for (const z of ZONA_DB) {
+    if (m.includes(z.nombre.toLowerCase())) {
+      if (z.nivel === 'alto') {
+        return { tipo: 'alerta', texto: `⚠️ <strong>${z.nombre}</strong> es una zona de <strong>riesgo alto</strong> con ${z.casos_mes} incidentes este mes. Se recomienda: no llevar objetos de valor visibles, ir acompañado y preferir las horas de la mañana (9–12 hs). Si necesitas ir, avisa a alguien de tu ubicación.` };
+      } else if (z.nivel === 'medio') {
+        return { tipo: 'advertencia', texto: `🟡 <strong>${z.nombre}</strong> tiene riesgo <strong>medio</strong> (${z.casos_mes} casos este mes). Puedes visitarla con precaución: evita mostrar celulares o cámaras y sé atento a tu entorno.` };
+      } else {
+        return { tipo: 'normal', texto: `✅ <strong>${z.nombre}</strong> es una zona de <strong>bajo riesgo</strong> (${z.casos_mes} casos este mes). Es relativamente segura, aunque siempre mantén precauciones básicas.` };
+      }
+    }
+  }
+
+  // Zonas más peligrosas
+  if (m.includes('peligros') || m.includes('peor') || m.includes('más riesgo') || m.includes('mas riesgo')) {
+    const top = CASO_DB_RESUMEN.filter(z => z.nivel === 'alto').sort((a,b) => b.casos - a.casos);
+    return { tipo: 'alerta', texto: `🔴 Las zonas de <strong>mayor riesgo</strong> en La Paz son: <strong>${top.map(z=>z.zona).join(', ')}</strong>. Se concentran robos de celular y asaltos, especialmente entre 12:00 y 20:00 hs.` };
+  }
+
+  // Qué hacer si roban
+  if (m.includes('robaron') || m.includes('robó') || m.includes('robo') || m.includes('asalto') || m.includes('hago si')) {
+    return { tipo: 'advertencia', texto: `🆘 Si fuiste víctima de un robo:<br>1. Ve a un lugar seguro y concurrido<br>2. Llama a la Policía Turística: <strong>222-5016</strong><br>3. Llama a emergencias: <strong>110</strong><br>4. Reporta el incidente en TuriSafe con el botón "+Reportar"<br>5. Contacta a tu embajada si es necesario` };
+  }
+
+  // Ruta segura
+  if (m.includes('ruta') || m.includes('llegar') || m.includes('cómo ir') || m.includes('como ir')) {
+    return { tipo: 'normal', texto: `🗺 Para moverte con seguridad en La Paz: usa taxis registrados o apps de ridesharing, evita zonas rojas especialmente de noche, y comparte tu ubicación con alguien de confianza. El teleférico es una opción segura para cruzar la ciudad.` };
+  }
+
+  // Horarios
+  if (m.includes('hora') || m.includes('noche') || m.includes('tarde') || m.includes('mañana') || m.includes('manana')) {
+    return { tipo: 'advertencia', texto: `⏰ Los horarios de mayor riesgo son entre <strong>18:00 y 22:00 hs</strong>. Las horas más seguras para visitar zonas turísticas son de <strong>9:00 a 13:00 hs</strong>. De noche, prefiere zonas bien iluminadas y concurridas.` };
+  }
+
+  // Emergencias / contactos
+  if (m.includes('policía') || m.includes('policia') || m.includes('emergencia') || m.includes('número') || m.includes('numero') || m.includes('llamar')) {
+    return { tipo: 'normal', texto: `📞 Contactos de emergencia en La Paz:<br>🚔 Policía Turística: <strong>222-5016</strong><br>🚨 Emergencias: <strong>110</strong><br>🏥 Ambulancia: <strong>118</strong><br>🚒 Bomberos: <strong>119</strong>` };
+  }
+
+  // Saludo
+  if (m.includes('hola') || m.includes('buenos') || m.includes('buenas') || m.match(/^(hi|hey|ola)$/)) {
+    return { tipo: 'normal', texto: `👋 ¡Hola! Soy el asistente de seguridad de TuriSafe. Puedo ayudarte con información sobre zonas de riesgo en La Paz, qué hacer en caso de incidente, o rutas seguras. ¿En qué puedo ayudarte?` };
+  }
+
+  // Default
+  return { tipo: 'normal', texto: `🤖 Puedo ayudarte con información sobre zonas de riesgo en La Paz. Intenta preguntarme: <em>¿Es seguro el Mercado Rodríguez?</em>, <em>¿Cuál es la zona más peligrosa?</em> o <em>¿Qué hago si me roban?</em>` };
+}
+
+function enviarMsg() {
+  const input = document.getElementById('chat-input');
+  const text = input.value.trim();
+  if (!text) return;
+  input.value = '';
+  agregarMsg(text, 'user');
+  mostrarTyping();
+  setTimeout(() => {
+    quitarTyping();
+    const resp = responderIA(text);
+    agregarMsg(resp.texto, 'bot ' + resp.tipo);
+  }, 800 + Math.random() * 500);
+}
+
+function preguntarRapido(texto) {
+  document.getElementById('chat-input').value = texto;
+  enviarMsg();
+}
+
+function agregarMsg(html, tipo) {
+  const msgs = document.getElementById('chat-msgs');
+  const now = new Date().toLocaleTimeString('es-BO', { hour:'2-digit', minute:'2-digit' });
+  const div = document.createElement('div');
+  div.className = 'msg ' + tipo;
+  div.innerHTML = html + `<div class="msg-time">${now}</div>`;
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+function mostrarTyping() {
+  const msgs = document.getElementById('chat-msgs');
+  const div = document.createElement('div');
+  div.className = 'typing';
+  div.id = 'typing-ind';
+  div.innerHTML = '<span></span><span></span><span></span>';
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+function quitarTyping() {
+  const t = document.getElementById('typing-ind');
+  if (t) t.remove();
+}
+</script>
+
+{% endblock %}

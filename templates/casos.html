@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% set active = 'casos' %}
+{% block title %}Casos{% endblock %}
+{% block content %}
+
+<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:14px">
+  <div class="page-header" style="margin:0">
+    <h1>📋 Registro de Casos</h1>
+    <p>Incidentes reportados en La Paz</p>
+  </div>
+  <a href="/casos/nuevo" class="btn-primary" style="flex-shrink:0">+ Nuevo</a>
+</div>
+
+<div class="card">
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Tipo</th>
+          <th>Zona</th>
+          <th>Fecha</th>
+          <th>País</th>
+          <th>Nivel</th>
+          <th>Estado</th>
+          {% if user.rol in ['admin','policia'] %}
+          <th>Reportado por</th>
+          <th>Acción</th>
+          {% endif %}
+        </tr>
+      </thead>
+      <tbody>
+      {% for c in casos %}
+      <tr>
+        <td style="color:#9ca3af">{{ c.id }}</td>
+        <td style="font-weight:500">{{ c.tipo }}</td>
+        <td>{{ c.zona }}</td>
+        <td style="white-space:nowrap">{{ c.fecha }}<br><span style="color:#9ca3af;font-size:11px">{{ c.hora }}</span></td>
+        <td>{{ c.nacionalidad }}</td>
+        <td><span class="pill {{ c.nivel_riesgo }}">{{ c.nivel_riesgo }}</span></td>
+        <td><span class="pill {{ c.estado }}">{{ c.estado }}</span></td>
+        {% if user.rol in ['admin','policia'] %}
+        <td style="font-size:11px;color:#6b7280;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+          {{ usuarios_map.get(c.reportado_por, '—') }}
+        </td>
+        <td>
+          <form method="POST" action="/casos/{{ c.id }}/estado">
+            <select name="estado" onchange="this.form.submit()" style="font-size:11px;padding:3px 5px;border:1px solid #d1d5db;border-radius:5px;background:#fff;cursor:pointer">
+              <option value="revision" {% if c.estado=='revision' %}selected{% endif %}>Revisión</option>
+              <option value="validado" {% if c.estado=='validado' %}selected{% endif %}>Validado</option>
+              <option value="cerrado"  {% if c.estado=='cerrado'  %}selected{% endif %}>Cerrado</option>
+            </select>
+          </form>
+        </td>
+        {% endif %}
+      </tr>
+      {% else %}
+      <tr><td colspan="9" style="text-align:center;color:#9ca3af;padding:24px">No hay casos registrados aún.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% set active = 'usuarios' %}
+{% block title %}Usuarios{% endblock %}
+{% block content %}
+
+<div class="page-header">
+  <h1>👥 Gestión de Usuarios</h1>
+  <p>Administración de roles y accesos</p>
+</div>
+
+<div class="card">
+  <h2>➕ Nuevo usuario</h2>
+  <form method="POST" action="/usuarios/crear">
+    <div class="form-grid">
+      <div class="form-group">
+        <label>Nombre completo</label>
+        <input type="text" name="nombre" required placeholder="Ej: Juan Pérez">
+      </div>
+      <div class="form-group">
+        <label>Correo electrónico</label>
+        <input type="email" name="email" required placeholder="usuario@turisafe.bo">
+      </div>
+    </div>
+    <div class="form-grid">
+      <div class="form-group">
+        <label>Contraseña</label>
+        <input type="password" name="password" required placeholder="Mínimo 6 caracteres">
+      </div>
+      <div class="form-group">
+        <label>Rol</label>
+        <select name="rol" required>
+          <option value="turista">Turista</option>
+          <option value="policia">Policía</option>
+          <option value="admin">Administrador</option>
+        </select>
+      </div>
+    </div>
+    <div class="btn-row">
+      <button type="submit" class="btn-primary">✅ Crear usuario</button>
+    </div>
+  </form>
+</div>
+
+<div class="card">
+  <h2>Lista de usuarios</h2>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>#</th><th>Nombre</th><th>Email</th><th>Rol</th>
+          <th>Registro</th><th>Estado</th><th>Acción</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for u in usuarios %}
+      <tr>
+        <td style="color:#9ca3af">{{ u.id }}</td>
+        <td style="font-weight:500">{{ u.nombre }}</td>
+        <td style="font-size:11px;color:#6b7280">{{ u.email }}</td>
+        <td><span class="pill {{ u.rol }}">{{ u.rol }}</span></td>
+        <td style="color:#9ca3af;white-space:nowrap;font-size:11px">{{ u.fecha_registro }}</td>
+        <td>
+          {% if u.activo %}
+            <span style="color:#16a34a;font-size:11px">● Activo</span>
+          {% else %}
+            <span style="color:#dc2626;font-size:11px">● Bloqueado</span>
+          {% endif %}
+        </td>
+        <td>
+          <form method="POST" action="/usuarios/{{ u.id }}/toggle">
+            <button type="submit" class="{% if u.activo %}btn-danger{% else %}btn-primary{% endif %}" style="padding:4px 8px;font-size:11px">
+              {% if u.activo %}Bloquear{% else %}Activar{% endif %}
+            </button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

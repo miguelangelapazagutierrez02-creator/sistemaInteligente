@@ -1,0 +1,168 @@
+{% extends "base.html" %}
+{% set active = 'casos' %}
+{% block title %}Nuevo Caso{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1>📝 Registrar Incidente</h1>
+  <p>Complete los datos del incidente reportado</p>
+</div>
+
+<div class="card">
+  <form method="POST" id="form-caso">
+    <div class="form-grid">
+      <div class="form-group">
+        <label>Tipo de incidente</label>
+        <select name="tipo" required>
+          <option value="">-- Seleccione --</option>
+          <option>Robo de celular</option>
+          <option>Robo de cartera</option>
+          <option>Robo de cámara</option>
+          <option>Asalto</option>
+          <option>Hurto</option>
+          <option>Robo a mano armada</option>
+          <option>Otro</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Zona / Lugar</label>
+        <select name="zona" required id="sel-zona" onchange="irAZona(this.value)">
+          <option value="">-- Seleccione --</option>
+          <option>Mercado Rodríguez</option>
+          <option>Cementerio General</option>
+          <option>Plaza Mayor</option>
+          <option>Sopocachi</option>
+          <option>Miraflores</option>
+          <option>Zona Sur</option>
+          <option>El Alto</option>
+          <option>Otro</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="form-grid">
+      <div class="form-group">
+        <label>Fecha del incidente</label>
+        <input type="date" name="fecha" required>
+      </div>
+      <div class="form-group">
+        <label>Hora aproximada</label>
+        <input type="time" name="hora">
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label>Descripción del hecho</label>
+      <textarea name="descripcion" placeholder="Describa brevemente lo ocurrido..." required></textarea>
+    </div>
+
+    <div class="form-group">
+      <label>Nacionalidad del afectado</label>
+      <select name="nacionalidad">
+        <option>Bolivia</option><option>Argentina</option><option>Brasil</option>
+        <option>Chile</option><option>Perú</option><option>Colombia</option>
+        <option>Estados Unidos</option><option>Alemania</option><option>España</option>
+        <option>Otra</option>
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label>📍 Marcar ubicación en el mapa</label>
+      <p style="font-size:11px;color:#6b7280;margin-bottom:6px">Toca el mapa para marcar el lugar exacto. Al elegir zona, el mapa va a esa área.</p>
+      <div id="mapa-picker" style="height:280px;border-radius:10px;border:2px solid #e5e7eb;overflow:hidden;transition:border-color .2s"></div>
+      <div id="coord-badge" style="margin-top:6px;display:none;align-items:center;gap:8px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:7px 10px;font-size:12px;color:#166534">
+        <span>📍</span>
+        <span id="coord-text"></span>
+        <button type="button" onclick="limpiarMarcador()" style="margin-left:auto;background:none;border:none;color:#9ca3af;cursor:pointer;font-size:14px">✕</button>
+      </div>
+      <p id="coord-hint" style="font-size:11px;color:#9ca3af;margin-top:5px">Sin marcador — se usará la coordenada de la zona seleccionada.</p>
+    </div>
+
+    <input type="hidden" name="lat" id="lat-hidden" value="-16.5000">
+    <input type="hidden" name="lng" id="lng-hidden" value="-68.1500">
+
+    <div class="btn-row">
+      <a href="/casos" class="btn-secondary">Cancelar</a>
+      <button type="submit" class="btn-primary">✅ Enviar reporte</button>
+    </div>
+  </form>
+</div>
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const COORDS_ZONA = {
+  "Mercado Rodríguez":  {lat:-16.4955,lng:-68.1385},
+  "Cementerio General": {lat:-16.4890,lng:-68.1450},
+  "Plaza Mayor":        {lat:-16.4997,lng:-68.1337},
+  "Sopocachi":          {lat:-16.5080,lng:-68.1190},
+  "Miraflores":         {lat:-16.5020,lng:-68.1100},
+  "Zona Sur":           {lat:-16.5150,lng:-68.1300},
+  "El Alto":            {lat:-16.5100,lng:-68.1900},
+  "Otro":               {lat:-16.5000,lng:-68.1500}
+};
+
+const mapa = L.map('mapa-picker',{center:[-16.5000,-68.1350],zoom:13});
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap'}).addTo(mapa);
+
+const colores={alto:'#dc2626',medio:'#d97706',bajo:'#16a34a'};
+[
+  {nombre:"Mercado Rodríguez",lat:-16.4955,lng:-68.1385,nivel:"alto",radio:300},
+  {nombre:"Cementerio General",lat:-16.4890,lng:-68.1450,nivel:"alto",radio:250},
+  {nombre:"Plaza Mayor",lat:-16.4997,lng:-68.1337,nivel:"medio",radio:200},
+  {nombre:"Sopocachi",lat:-16.5080,lng:-68.1190,nivel:"bajo",radio:280},
+  {nombre:"Miraflores",lat:-16.5020,lng:-68.1100,nivel:"bajo",radio:200},
+  {nombre:"Zona Sur",lat:-16.5150,lng:-68.1300,nivel:"medio",radio:220},
+].forEach(z=>L.circle([z.lat,z.lng],{radius:z.radio,color:colores[z.nivel],fillColor:colores[z.nivel],fillOpacity:0.12,weight:1.5}).addTo(mapa).bindTooltip(z.nombre));
+
+const iconoMarcador = L.divIcon({
+  html:`<div style="width:28px;height:28px;background:#0F6E56;border:3px solid #fff;border-radius:50% 50% 50% 0;transform:rotate(-45deg);box-shadow:0 2px 8px rgba(0,0,0,0.3)"></div>`,
+  className:'',iconSize:[28,28],iconAnchor:[14,28],popupAnchor:[0,-28]
+});
+
+let marcador=null;
+
+mapa.on('click',function(e){
+  ponerMarcador(parseFloat(e.latlng.lat.toFixed(5)),parseFloat(e.latlng.lng.toFixed(5)));
+});
+
+function ponerMarcador(lat,lng){
+  if(marcador)mapa.removeLayer(marcador);
+  marcador=L.marker([lat,lng],{icon:iconoMarcador,draggable:true}).addTo(mapa);
+  marcador.on('dragend',function(){
+    const p=marcador.getLatLng();
+    actualizarCoords(parseFloat(p.lat.toFixed(5)),parseFloat(p.lng.toFixed(5)));
+  });
+  actualizarCoords(lat,lng);
+  document.getElementById('mapa-picker').style.borderColor='#1D9E75';
+}
+
+function actualizarCoords(lat,lng){
+  document.getElementById('lat-hidden').value=lat;
+  document.getElementById('lng-hidden').value=lng;
+  document.getElementById('coord-text').textContent=`Lat: ${lat}  ·  Lng: ${lng}`;
+  document.getElementById('coord-badge').style.display='flex';
+  document.getElementById('coord-hint').style.display='none';
+}
+
+function limpiarMarcador(){
+  if(marcador){mapa.removeLayer(marcador);marcador=null;}
+  document.getElementById('coord-badge').style.display='none';
+  document.getElementById('coord-hint').style.display='block';
+  document.getElementById('mapa-picker').style.borderColor='#e5e7eb';
+  const zona=document.getElementById('sel-zona').value;
+  const c=COORDS_ZONA[zona]||{lat:-16.5,lng:-68.15};
+  document.getElementById('lat-hidden').value=c.lat;
+  document.getElementById('lng-hidden').value=c.lng;
+}
+
+function irAZona(zona){
+  const c=COORDS_ZONA[zona];
+  if(!c)return;
+  mapa.flyTo([c.lat,c.lng],15,{duration:0.8});
+  if(!marcador){
+    document.getElementById('lat-hidden').value=c.lat;
+    document.getElementById('lng-hidden').value=c.lng;
+  }
+}
+</script>
+{% endblock %}

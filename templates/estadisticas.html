@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+{% set active = 'estadisticas' %}
+{% block title %}Estadísticas{% endblock %}
+{% block content %}
+
+<style>
+  .est-header{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+  .est-btns{display:flex;gap:6px;flex-wrap:wrap;flex-shrink:0}
+  .filtros-form{display:grid;gap:10px;grid-template-columns:1fr}
+  .charts-grid{display:grid;grid-template-columns:1fr;gap:12px}
+  .recom-grid{display:grid;grid-template-columns:1fr;gap:10px;font-size:12px}
+  .recom-item{border-radius:10px;padding:12px;border:1px solid}
+  @media(min-width:540px){
+    .filtros-form{grid-template-columns:1fr 1fr}
+  }
+  @media(min-width:700px){
+    .filtros-form{grid-template-columns:repeat(4,1fr) auto}
+    .charts-grid{grid-template-columns:1fr 1fr}
+    .recom-grid{grid-template-columns:repeat(3,1fr)}
+  }
+</style>
+
+<div class="est-header">
+  <div class="page-header" style="margin:0">
+    <h1>📊 Reportes y Estadísticas</h1>
+    <p>Análisis de incidentes — {{ now if now else "Mayo 2026" }}</p>
+  </div>
+  <div class="est-btns">
+    <a href="{{ url_for('exportar', formato='json', fecha_desde=filtros.fecha_desde, fecha_hasta=filtros.fecha_hasta, tipo=filtros.tipo, zona=filtros.zona) }}" class="btn-secondary" target="_blank">📄 JSON</a>
+    <a href="{{ url_for('exportar', formato='pdf', fecha_desde=filtros.fecha_desde, fecha_hasta=filtros.fecha_hasta, tipo=filtros.tipo, zona=filtros.zona) }}" class="btn-secondary">📑 PDF</a>
+  </div>
+</div>
+
+<div class="card">
+  <h2>🔎 Filtros</h2>
+  <form method="get" action="/estadisticas" class="filtros-form">
+    <div class="form-group" style="margin:0">
+      <label>Fecha desde</label>
+      <input type="date" name="fecha_desde" value="{{ filtros.fecha_desde }}">
+    </div>
+    <div class="form-group" style="margin:0">
+      <label>Fecha hasta</label>
+      <input type="date" name="fecha_hasta" value="{{ filtros.fecha_hasta }}">
+    </div>
+    <div class="form-group" style="margin:0">
+      <label>Tipo de incidente</label>
+      <select name="tipo">
+        <option value="">Todos</option>
+        <option value="Robo de celular" {% if filtros.tipo=='Robo de celular' %}selected{% endif %}>Robo de celular</option>
+        <option value="Hurto de cartera" {% if filtros.tipo=='Hurto de cartera' %}selected{% endif %}>Hurto de cartera</option>
+        <option value="Asalto" {% if filtros.tipo=='Asalto' %}selected{% endif %}>Asalto</option>
+        <option value="Robo de cámara" {% if filtros.tipo=='Robo de cámara' %}selected{% endif %}>Robo de cámara</option>
+      </select>
+    </div>
+    <div class="form-group" style="margin:0">
+      <label>Zona</label>
+      <input type="text" name="zona" value="{{ filtros.zona }}" placeholder="Ej. Plaza Mayor">
+    </div>
+    <button type="submit" class="btn-primary" style="align-self:end;white-space:nowrap">Aplicar</button>
+  </form>
+  {% if error %}<div class="alert-info" style="margin-top:10px;background:#fef2f2;border-color:#fecaca;color:#991b1b">{{ error }}</div>{% endif %}
+  {% if no_data_message %}<div class="alert-info" style="margin-top:10px">{{ no_data_message }}</div>{% endif %}
+</div>
+
+<div class="stats-grid">
+  <div class="stat blue"><div class="num">{{ stats.total }}</div><div class="lbl">Total</div></div>
+  <div class="stat red"><div class="num">{{ stats.alto }}</div><div class="lbl">Alto</div></div>
+  <div class="stat amber"><div class="num">{{ stats.medio }}</div><div class="lbl">Medio</div></div>
+  <div class="stat green"><div class="num">{{ stats.bajo }}</div><div class="lbl">Bajo</div></div>
+  <div class="stat blue"><div class="num">{{ stats.validados }}</div><div class="lbl">Validados</div></div>
+  <div class="stat amber"><div class="num">{{ stats.en_revision }}</div><div class="lbl">Revisión</div></div>
+</div>
+
+<div class="charts-grid">
+  <div class="card" style="margin:0">
+    <h2>📍 Casos por zona</h2>
+    {% for zona, cantidad in por_zona %}
+    {% set pct = (cantidad / stats.total * 100)|int if stats.total > 0 else 0 %}
+    <div style="margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px">
+        <span style="color:#374151">{{ zona }}</span>
+        <span style="font-weight:500;color:#111827">{{ cantidad }}</span>
+      </div>
+      <div style="background:#f3f4f6;border-radius:4px;height:7px;overflow:hidden">
+        <div style="width:{{ pct }}%;height:100%;background:{% if pct > 50 %}#dc2626{% elif pct > 25 %}#d97706{% else %}#16a34a{% endif %};border-radius:4px"></div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <div class="card" style="margin:0">
+    <h2>🔍 Tipos de incidente</h2>
+    {% for tipo, cantidad in por_tipo %}
+    {% set pct = (cantidad / stats.total * 100)|int if stats.total > 0 else 0 %}
+    <div style="margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px">
+        <span style="color:#374151">{{ tipo }}</span>
+        <span style="font-weight:500;color:#111827">{{ cantidad }}</span>
+      </div>
+      <div style="background:#f3f4f6;border-radius:4px;height:7px;overflow:hidden">
+        <div style="width:{{ pct }}%;height:100%;background:#4f46e5;border-radius:4px"></div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<div class="card" style="margin-top:12px">
+  <h2>📋 Recomendaciones para la FELCC</h2>
+  <div class="recom-grid">
+    <div class="recom-item" style="background:#fef2f2;border-color:#fecaca">
+      <div style="font-weight:600;color:#991b1b;margin-bottom:5px">🔴 Zonas críticas</div>
+      <div style="color:#7f1d1d">Incrementar patrullaje en Mercado Rodríguez y Cementerio General, especialmente entre 12:00 y 18:00 hrs.</div>
+    </div>
+    <div class="recom-item" style="background:#fffbeb;border-color:#fde68a">
+      <div style="font-weight:600;color:#92400e;margin-bottom:5px">🟡 Prevención</div>
+      <div style="color:#78350f">Instalar señalización de alerta para turistas en zonas de riesgo medio. Distribuir folletos en hoteles.</div>
+    </div>
+    <div class="recom-item" style="background:#f0fdf4;border-color:#bbf7d0">
+      <div style="font-weight:600;color:#166534;margin-bottom:5px">🟢 Acciones exitosas</div>
+      <div style="color:#14532d">Sopocachi y Miraflores mantienen bajo índice. Replicar estrategias en otras zonas.</div>
+    </div>
+  </div>
+</div>
+{% endblock %}

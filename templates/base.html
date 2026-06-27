@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TuriSafe · {% block title %}{% endblock %}</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&display=swap');
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'DM Sans',sans-serif;background:#f4f6f8;min-height:100vh;display:flex;flex-direction:column}
+
+  /* ── NAV ── */
+  .navbar{background:#0a1628;color:#fff;padding:0 12px;height:52px;display:flex;align-items:center;gap:8px;position:sticky;top:0;z-index:300;border-bottom:1px solid rgba(255,255,255,0.08)}
+  .navbar .logo{font-weight:600;font-size:15px;color:#fff;text-decoration:none;display:flex;align-items:center;gap:6px;flex-shrink:0}
+  .navbar .logo span{color:#1D9E75}
+
+  /* Links horizontales — solo en desktop */
+  .nav-links{display:none;gap:2px}
+  .nav-links a{color:rgba(255,255,255,0.55);text-decoration:none;font-size:13px;padding:6px 11px;border-radius:8px;transition:all .15s;white-space:nowrap}
+  .nav-links a:hover{color:#fff;background:rgba(255,255,255,0.08)}
+  .nav-links a.active{color:#fff;background:rgba(29,158,117,0.2)}
+
+  /* Info usuario — OCULTO en móvil, visible en desktop */
+  .user-info{display:none;align-items:center;gap:6px;flex-shrink:0}
+  .avatar{width:28px;height:28px;border-radius:50%;background:#1D9E75;display:flex;align-items:center;justify-content:center;font-weight:600;font-size:11px;color:#fff;flex-shrink:0}
+  .user-name{font-size:12px;color:rgba(255,255,255,0.6)}
+  .btn-logout{color:rgba(255,255,255,0.4);text-decoration:none;font-size:11px;padding:3px 8px;border:1px solid rgba(255,255,255,0.1);border-radius:6px;white-space:nowrap}
+  .btn-logout:hover{color:#fff;border-color:rgba(255,255,255,0.3)}
+
+  /* ── HAMBURGUESA — siempre a la derecha en móvil ── */
+  .ham-btn{display:flex;flex-direction:column;justify-content:center;gap:5px;width:36px;height:36px;background:none;border:none;cursor:pointer;padding:6px;border-radius:8px;flex-shrink:0;margin-left:auto}
+  .ham-btn span{display:block;height:2px;background:#fff;border-radius:2px;transition:all .25s}
+  .ham-btn.open span:nth-child(1){transform:translateY(7px) rotate(45deg)}
+  .ham-btn.open span:nth-child(2){opacity:0}
+  .ham-btn.open span:nth-child(3){transform:translateY(-7px) rotate(-45deg)}
+
+  /* ── MENÚ DESLIZANTE ── */
+  .nav-drawer{
+    position:fixed;top:0;left:0;right:0;
+    background:#0a1628;
+    z-index:299;
+    transform:translateY(-100%);
+    transition:transform .28s cubic-bezier(.4,0,.2,1);
+    border-bottom:1px solid rgba(255,255,255,0.1);
+    box-shadow:0 8px 32px rgba(0,0,0,0.6);
+    padding-top:52px;
+  }
+  .nav-drawer.open{transform:translateY(0)}
+
+  /* Perfil dentro del drawer */
+  .drawer-profile{
+    display:flex;align-items:center;gap:10px;
+    padding:14px 16px;
+    border-bottom:1px solid rgba(255,255,255,0.08);
+  }
+  .drawer-avatar{width:36px;height:36px;border-radius:50%;background:#1D9E75;display:flex;align-items:center;justify-content:center;font-weight:600;font-size:14px;color:#fff;flex-shrink:0}
+  .drawer-name{font-size:14px;font-weight:500;color:#fff}
+  .drawer-rol{font-size:11px;color:rgba(255,255,255,0.45);margin-top:1px}
+
+  /* Links del drawer */
+  .drawer-links{padding:8px 8px}
+  .drawer-links a{
+    display:flex;align-items:center;gap:12px;
+    color:rgba(255,255,255,0.7);text-decoration:none;
+    font-size:14px;padding:12px 14px;border-radius:10px;
+    transition:all .15s;
+  }
+  .drawer-links a:hover{background:rgba(255,255,255,0.06);color:#fff}
+  .drawer-links a.active{background:rgba(29,158,117,0.15);color:#5DCAA5}
+  .drawer-links a .icon{font-size:18px;width:24px;text-align:center}
+
+  /* Separador y salir */
+  .drawer-sep{height:1px;background:rgba(255,255,255,0.08);margin:4px 14px}
+  .drawer-logout{
+    display:flex;align-items:center;gap:12px;
+    color:rgba(255,255,255,0.4);text-decoration:none;
+    font-size:14px;padding:12px 14px;border-radius:10px;
+    transition:all .15s;
+  }
+  .drawer-logout:hover{background:rgba(226,75,74,0.1);color:#f09595}
+
+  /* Overlay oscuro */
+  .drawer-overlay{
+    display:none;position:fixed;inset:0;top:0;
+    background:rgba(0,0,0,0.6);z-index:298;
+  }
+  .drawer-overlay.open{display:block}
+
+  /* ── CONTENIDO ── */
+  .container{max-width:1100px;margin:0 auto;padding:12px;flex:1;width:100%}
+  .page-header{margin-bottom:14px}
+  .page-header h1{font-size:17px;font-weight:600;color:#0a1628;margin-bottom:3px}
+  .page-header p{font-size:12px;color:#6b7280}
+
+  /* ── CARDS ── */
+  .card{background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:14px;margin-bottom:12px}
+  .card h2{font-size:14px;font-weight:600;color:#0a1628;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+
+  /* ── STATS ── */
+  .stats-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
+  .stat{background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:10px 6px;text-align:center}
+  .stat .num{font-size:20px;font-weight:600;line-height:1}
+  .stat .lbl{font-size:10px;color:#6b7280;margin-top:3px}
+  .stat.red .num{color:#dc2626}
+  .stat.amber .num{color:#d97706}
+  .stat.green .num{color:#16a34a}
+  .stat.blue .num{color:#2563eb}
+
+  /* ── TABLA ── */
+  .table-wrap{width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch}
+  table{width:100%;border-collapse:collapse;font-size:12px;min-width:480px}
+  th{text-align:left;padding:7px 10px;font-size:10px;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;border-bottom:1px solid #e5e7eb;font-weight:500;white-space:nowrap}
+  td{padding:8px 10px;border-bottom:1px solid #f3f4f6;color:#374151;vertical-align:middle}
+  tr:last-child td{border-bottom:none}
+  tr:hover td{background:#fafafa}
+
+  /* ── PILLS ── */
+  .pill{display:inline-block;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:500;white-space:nowrap}
+  .pill.alto{background:#fef2f2;color:#991b1b}
+  .pill.medio{background:#fffbeb;color:#92400e}
+  .pill.bajo{background:#f0fdf4;color:#166534}
+  .pill.validado{background:#eff6ff;color:#1e40af}
+  .pill.revision{background:#fff7ed;color:#9a3412}
+  .pill.cerrado{background:#f3f4f6;color:#6b7280}
+  .pill.admin{background:#ede9fe;color:#5b21b6}
+  .pill.policia{background:#eff6ff;color:#1e40af}
+  .pill.turista{background:#f0fdf4;color:#166534}
+
+  /* ── FORMS ── */
+  .form-group{margin-bottom:10px}
+  .form-group label{display:block;font-size:11px;color:#374151;font-weight:500;margin-bottom:4px}
+  .form-group input,.form-group select,.form-group textarea{width:100%;border:1px solid #d1d5db;border-radius:8px;padding:8px 10px;font-size:13px;font-family:'DM Sans',sans-serif;outline:none;transition:border .2s;color:#111827;background:#fff}
+  .form-group input:focus,.form-group select:focus,.form-group textarea:focus{border-color:#1D9E75;box-shadow:0 0 0 3px rgba(29,158,117,0.1)}
+  .form-group textarea{resize:vertical;min-height:70px}
+  .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+
+  /* ── BOTONES ── */
+  .btn-primary{background:#0F6E56;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:500;cursor:pointer;font-family:'DM Sans',sans-serif;transition:background .15s;text-decoration:none;display:inline-block}
+  .btn-primary:hover{background:#085041}
+  .btn-secondary{background:#fff;color:#374151;border:1px solid #d1d5db;border-radius:8px;padding:7px 14px;font-size:12px;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all .15s;text-decoration:none;display:inline-block}
+  .btn-secondary:hover{background:#f9fafb}
+  .btn-danger{background:#dc2626;color:#fff;border:none;border-radius:8px;padding:5px 10px;font-size:11px;cursor:pointer;font-family:'DM Sans',sans-serif}
+  .btn-row{display:flex;gap:8px;justify-content:flex-end;margin-top:12px;flex-wrap:wrap}
+
+  /* ── ALERTS ── */
+  .alert-info{background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:10px 14px;font-size:12px;color:#1e40af;margin-bottom:12px}
+
+  /* ── FOOTER ── */
+  footer{background:#0a1628;color:rgba(255,255,255,0.35);font-size:10px;text-align:center;padding:10px 12px;margin-top:auto;line-height:1.6}
+
+  /* ── DESKTOP ── */
+  @media(min-width:640px){
+    .ham-btn{display:none}
+    .nav-links{display:flex;margin:0 8px}
+    .user-info{display:flex;margin-left:auto;gap:8px}
+    .user-name{display:inline}
+    .navbar{padding:0 20px;gap:14px;height:56px}
+    .navbar .logo{font-size:16px}
+    .container{padding:20px}
+    .page-header h1{font-size:20px}
+    .page-header p{font-size:13px}
+    .card{padding:18px;border-radius:14px}
+    .stats-grid{grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px}
+    table{font-size:13px}
+    th{font-size:11px;padding:8px 12px}
+    td{padding:9px 12px}
+    .pill{font-size:11px;padding:2px 10px}
+    .form-grid{gap:12px}
+    .btn-row{gap:10px}
+  }
+
+  /* ── MÓVIL PEQUEÑO ── */
+  @media(max-width:360px){
+    .form-grid{grid-template-columns:1fr}
+    .btn-row{flex-direction:column}
+    .btn-row a,.btn-row button{width:100%;text-align:center}
+  }
+</style>
+</head>
+<body>
+
+<nav class="navbar">
+  <a href="/mapa" class="logo">🛡️ <span>Turi</span>Safe</a>
+
+  <!-- Links solo desktop -->
+  <div class="nav-links">
+    <a href="/mapa" {% if active=='mapa' %}class="active"{% endif %}>🗺 Mapa</a>
+    <a href="/casos" {% if active=='casos' %}class="active"{% endif %}>📋 Casos</a>
+    {% if user.rol in ['admin','policia'] %}
+    <a href="/estadisticas" {% if active=='estadisticas' %}class="active"{% endif %}>📊 Stats</a>
+    {% endif %}
+    {% if user.rol == 'admin' %}
+    <a href="/usuarios" {% if active=='usuarios' %}class="active"{% endif %}>👥 Usuarios</a>
+    {% endif %}
+  </div>
+
+  <!-- Info usuario desktop -->
+  <div class="user-info">
+    {% if user.rol == 'visitante' %}
+    <div class="avatar" style="background:#374151">👤</div>
+    {% else %}
+    <div class="avatar">{{ user.nombre[:2].upper() }}</div>
+    <span class="user-name">{{ user.nombre.split()[0] }}</span>
+    {% endif %}
+    {% if user.rol == 'visitante' %}
+    <a href="/login" class="btn-logout" style="color:#5DCAA5;border-color:rgba(29,158,117,0.4)">Iniciar sesión</a>
+    {% else %}
+    <a href="/logout" class="btn-logout">Salir</a>
+    {% endif %}
+  </div>
+
+  <!-- Botón hamburguesa móvil -->
+  <button class="ham-btn" id="ham-btn" onclick="toggleDrawer()" aria-label="Menú">
+    <span></span><span></span><span></span>
+  </button>
+</nav>
+
+<!-- Overlay oscuro -->
+<div class="drawer-overlay" id="drawer-overlay" onclick="cerrarDrawer()"></div>
+
+<!-- Menú deslizante -->
+<div class="nav-drawer" id="nav-drawer">
+
+  <!-- Perfil -->
+  <div class="drawer-profile">
+    {% if user.rol == 'visitante' %}
+    <div class="drawer-avatar" style="background:#374151;font-size:16px">👤</div>
+    <div>
+      <div class="drawer-name">Modo visitante</div>
+      <div class="drawer-rol">Sin cuenta — solo lectura</div>
+    </div>
+    {% else %}
+    <div class="drawer-avatar">{{ user.nombre[:2].upper() }}</div>
+    <div>
+      <div class="drawer-name">{{ user.nombre }}</div>
+      <div class="drawer-rol">{{ user.rol }}</div>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Opciones de navegación -->
+  <div class="drawer-links">
+    <a href="/mapa" {% if active=='mapa' %}class="active"{% endif %} onclick="cerrarDrawer()">
+      <span class="icon">🗺</span> Mapa de riesgos
+    </a>
+    <a href="/casos" {% if active=='casos' %}class="active"{% endif %} onclick="cerrarDrawer()">
+      <span class="icon">📋</span> Registro de casos
+    </a>
+    {% if user.rol in ['admin','policia'] %}
+    <a href="/estadisticas" {% if active=='estadisticas' %}class="active"{% endif %} onclick="cerrarDrawer()">
+      <span class="icon">📊</span> Estadísticas
+    </a>
+    {% endif %}
+    {% if user.rol == 'admin' %}
+    <a href="/usuarios" {% if active=='usuarios' %}class="active"{% endif %} onclick="cerrarDrawer()">
+      <span class="icon">👥</span> Gestión de usuarios
+    </a>
+    {% endif %}
+
+    <div class="drawer-sep"></div>
+
+    {% if user.rol == 'visitante' %}
+    <a href="/login" class="drawer-logout" style="color:#5DCAA5">
+      <span class="icon">🔑</span> Iniciar sesión
+    </a>
+    {% else %}
+    <a href="/logout" class="drawer-logout">
+      <span class="icon">🚪</span> Cerrar sesión
+    </a>
+    {% endif %}
+  </div>
+
+</div>
+
+<div class="container">
+  {% block content %}{% endblock %}
+</div>
+
+<footer>TuriSafe · La Paz, Bolivia · Build with AI · GDG La Paz</footer>
+
+<script>
+function toggleDrawer(){
+  const btn=document.getElementById('ham-btn');
+  const drawer=document.getElementById('nav-drawer');
+  const overlay=document.getElementById('drawer-overlay');
+  const open=drawer.classList.toggle('open');
+  btn.classList.toggle('open',open);
+  overlay.classList.toggle('open',open);
+  document.body.style.overflow=open?'hidden':'';
+}
+function cerrarDrawer(){
+  document.getElementById('ham-btn').classList.remove('open');
+  document.getElementById('nav-drawer').classList.remove('open');
+  document.getElementById('drawer-overlay').classList.remove('open');
+  document.body.style.overflow='';
+}
+// Cerrar con Escape
+document.addEventListener('keydown',e=>{ if(e.key==='Escape') cerrarDrawer(); });
+</script>
+
+</body>
+</html>
